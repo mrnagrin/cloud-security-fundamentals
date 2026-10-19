@@ -26,6 +26,7 @@ resource "aws_s3_bucket" "compliant" {
   bucket = var.bucket_name
 
   tags = {
+    Owner = "marina"
     Project  = "cloud-security-fundamentals"
     Purpose  = "GRC engineering portfolio"
     Controls = "SC-28 CM-6 AC-3"
