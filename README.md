@@ -1,44 +1,112 @@
-# Cloud & DevOps Fundamentals — Practice Repo
+# Cloud Security Fundamentals
 
-A hands-on learning project covering AWS security fundamentals, Linux CLI, 
-and Git version control — built as part of my transition toward 
-GRC engineering and cloud security roles.
+A hands-on learning project for my move from IT audit and compliance into
+GRC engineering. It covers AWS security basics, Linux CLI, Git, and a small
+end-to-end example of compliance controls handled as code.
 
-## What's in here
+I'm still learning. This repo is where I practice and document what I build.
 
-- `hello.txt` — basic file operations and Git tracking practice
-- `script.sh` — executable shell script (permissions practice: chmod, ownership)
-- Branch history demonstrating feature-branch workflow
+## The idea: build it, prove it, verify it
 
-## Skills demonstrated
+Three pieces work together on one example: a compliant S3 bucket.
 
-**AWS**
-- IAM user creation with least-privilege principles and MFA
-- S3 bucket configuration: default encryption (SSE-S3), Block Public Access
-- Wrote and applied a custom bucket policy enforcing HTTPS-only access 
-  (explicit deny on `aws:SecureTransport: false`) — a preventive control 
-  pattern relevant to SOX ITGC and vendor security assessment work
+| Step | Tool | What it does | Folder |
+|---|---|---|---|
+| 1. **Build** | Terraform | Deploys the bucket from code with encryption, versioning, and public access blocked | [`terraform/`](terraform/) |
+| 2. **Prove before deploy** | OPA / Rego | Reads the Terraform plan and fails if a control is missing | [`opa/`](opa/) |
+| 3. **Verify after deploy** | Python / boto3 | Pulls live IAM data from AWS and writes a CSV report | [`python-compliance-scripts/`](python-compliance-scripts/) |
 
-**Linux CLI**
-- Directory navigation and file management
-- File permission management (chmod numeric notation, ownership with chown)
-- Understanding permission structure: owner/group/other read-write-execute
+### Controls covered (NIST 800-53)
 
-**Git / GitHub**
-- Repository initialization, staging, and committing
-- Remote repository setup and authentication via Personal Access Token
-- Branching and workflow practice (feature branches, merge-ready structure)
+| Control | Requirement | Where it's implemented |
+|---|---|---|
+| SC-28 | Protection of information at rest | Bucket encryption (AES-256) |
+| CM-6 | Configuration settings | Bucket versioning enabled |
+| AC-3 | Access enforcement | All four public access settings blocked |
 
-## Why this matters
+The OPA policies include 6 unit tests (a passing and a failing case for each
+control), and they pass against the deployed Terraform code.
 
-Coming from an IT audit and security compliance background (SOX 404 ITGC/ITAC 
-testing, Continuous Controls Monitoring platform design), I'm building hands-on 
-technical fluency in the tools that underpin modern GRC engineering — 
-policy-as-code, cloud security controls, and version-controlled infrastructure.
+## What's in this repo
+
+```
+.
+├── terraform/                  Infrastructure as code for the compliant bucket
+├── opa/                        Rego policies and unit tests
+│   ├── policies/
+│   └── tests/
+├── python-compliance-scripts/  boto3 IAM audit script (MFA, key age, activity)
+├── controls-mapping.md         Technical settings mapped to NIST 800-53 / SOC 2
+├── commands-cheatsheet.md      Personal reference for Linux, Git, and AWS CLI
+├── script.sh                   Shell script for permissions practice
+└── hello.txt                   Basic file and Git practice
+```
+
+## Running each part
+
+**Terraform** (needs the AWS CLI configured and Terraform installed)
+```bash
+cd terraform
+terraform init
+terraform plan
+terraform apply
+terraform destroy    # removes the demo bucket when finished
+```
+
+**OPA unit tests** (needs OPA installed)
+```bash
+opa test opa/policies opa/tests -v
+```
+
+**Check a real Terraform plan against the policies**
+```bash
+cd terraform
+terraform plan -out=tfplan
+terraform show -json tfplan > tfplan.json
+opa eval --format pretty --data ../opa/policies --input tfplan.json "data.terraform.s3.main.deny"
+```
+An empty result (`[]`) means every control is in place. Anything listed is a
+violation, labeled with the control it breaks.
+
+**Python IAM audit**
+```bash
+pip3 install boto3
+python3 python-compliance-scripts/iam_compliance_audit.py
+```
+
+Plan files, state files, and generated CSV reports are git-ignored because
+they can contain account data.
+
+## What I've practiced
+
+**AWS:** IAM users with MFA instead of the root account, S3 encryption and
+Block Public Access, a bucket policy that denies non-HTTPS requests, and
+checking settings from the AWS CLI.
+
+**Infrastructure as code:** declaring AWS resources in Terraform, reading a
+plan before applying it, and keeping state out of version control.
+
+**Policy as code:** writing Rego rules against Terraform plan JSON and testing
+them with OPA's built-in test runner.
+
+**Python:** using boto3 to pull IAM configuration and turn it into audit
+evidence.
+
+**Linux and Git:** file permissions, branching, merging, resolving a merge
+conflict, and working with a GitHub remote.
+
+## Why I'm building this
+
+I spent years on the audit and compliance side, testing whether controls
+exist and work. The logic of a control is the same in the cloud: what it's
+meant to achieve, how it's configured, how you get evidence, and how you test
+it. What changes is where the evidence lives and how you collect it. This repo
+is me learning to do that part with code.
 
 ## Next steps
 
-- [ ] EC2 instance + SSH practice
-- [ ] Terraform / Infrastructure as Code
-- [ ] OPA/Rego policy-as-code examples
-- [ ] Python scripting for AWS API integration
+- [ ] Extend the Python audit with a CloudTrail logging check
+- [ ] Add more controls to the Terraform and Rego examples
+- [ ] Run the OPA checks automatically in GitHub Actions
+- [ ] Try AWS Config managed rules and Security Hub
+- [ ] EC2 and SSH practice for real Linux user management
